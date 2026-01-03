@@ -3,190 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aether-01 | Neural Lens & Terminal</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>Aether-01 | Neural Lens</title>
     <style>
-        :root {
-            --neon: #00f2ff;
-            --robot-pink: #ff007a;
-            --bg: #050505;
-        }
-
-        body, html { margin: 0; padding: 0; background: var(--bg); color: white; font-family: 'Inter', sans-serif; overflow: hidden; height: 100vh; }
-
-        /* Camera Viewport */
-        #camera-container {
-            position: relative;
-            width: 100%;
-            height: 60vh;
-            background: #111;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
-        }
-
+        body { margin: 0; background: #000; color: #00f2ff; font-family: monospace; height: 100vh; display: flex; flex-direction: column; }
+        #cam-box { position: relative; height: 60%; background: #111; border-bottom: 2px solid #00f2ff; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         video { width: 100%; height: 100%; object-fit: cover; }
-
-        /* Lens UI Overlay */
-        .lens-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none;
-            border: 2px solid transparent;
-        }
-
-        .corner {
-            position: absolute;
-            width: 30px; height: 30px;
-            border: 3px solid var(--neon);
-            pointer-events: auto;
-            cursor: pointer;
-        }
-        .tl { top: 20%; left: 15%; border-right: 0; border-bottom: 0; }
-        .tr { top: 20%; right: 15%; border-left: 0; border-bottom: 0; }
-        .bl { bottom: 20%; left: 15%; border-right: 0; border-top: 0; }
-        .br { bottom: 20%; right: 15%; border-left: 0; border-top: 0; }
-
-        /* Capture Button */
-        .shutter-btn {
-            position: absolute;
-            bottom: 20px;
-            width: 60px; height: 60px;
-            background: white;
-            border-radius: 50%;
-            border: 5px solid rgba(0, 242, 255, 0.5);
-            cursor: pointer;
-            pointer-events: auto;
-        }
-
-        /* Bottom Terminal Section */
-        .terminal-section {
-            height: 40vh;
-            background: rgba(15, 15, 25, 0.95);
-            border-top: 2px solid var(--neon);
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        #chat-output {
-            flex: 1;
-            overflow-y: auto;
-            font-family: monospace;
-            font-size: 0.9rem;
-            color: #ccc;
-            margin-bottom: 10px;
-        }
-
-        .input-area {
-            display: flex;
-            gap: 10px;
-            background: rgba(255,255,255,0.05);
-            padding: 10px;
-            border-radius: 12px;
-        }
-
-        input {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: white;
-            outline: none;
-            font-size: 1rem;
-        }
-
-        .robot-msg { color: var(--neon); margin-bottom: 10px; }
-        .user-msg { color: var(--robot-pink); text-align: right; margin-bottom: 10px; }
-
+        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20; cursor: pointer; }
+        .terminal { flex: 1; padding: 15px; background: #050505; overflow-y: auto; font-size: 13px; border: 1px solid #111; }
+        input { width: 90%; margin: 10px auto; padding: 12px; background: #111; border: 1px solid #00f2ff; color: white; border-radius: 8px; outline: none; display: block; }
     </style>
 </head>
 <body>
 
-<div id="camera-container">
-    <video id="webcam" autoplay playsinline></video>
-    
-    <div class="lens-overlay">
-        <div class="corner tl"></div>
-        <div class="corner tr"></div>
-        <div class="corner bl"></div>
-        <div class="corner br"></div>
-        <div style="width: 100%; text-align: center; position: absolute; top: 10%; color: var(--neon); font-size: 0.7rem; letter-spacing: 2px;">AETHER-01 NEURAL LENS ACTIVE</div>
+<div id="cam-box">
+    <div id="overlay" onclick="bootLens()">
+        <div style="border: 2px solid #00f2ff; padding: 20px; text-align: center;">
+            <h2 style="margin:0">AETHER-01</h2>
+            <p>[ TAP TO SYNC LENS ]</p>
+        </div>
     </div>
-
-    <button class="shutter-btn" onclick="capturePhoto()"></button>
+    <video id="lens" autoplay playsinline muted></video>
 </div>
 
-<div class="terminal-section">
-    <div id="chat-output">
-        <div class="robot-msg">AETHER-01: Systems online. You can type your question below or click the shutter to scan homework.</div>
-    </div>
-
-    <div class="input-area">
-        <i class="fas fa-terminal" style="color: var(--neon); align-self: center;"></i>
-        <input type="text" id="userInput" placeholder="Ask me anything (e.g. 'Solve question 3')..." onkeypress="checkEnter(event)">
-        <button onclick="sendText()" style="background: var(--neon); border: none; padding: 5px 15px; border-radius: 8px; cursor: pointer;"><i class="fas fa-paper-plane"></i></button>
-    </div>
-</div>
+<div class="terminal" id="log">> SYSTEM: Awaiting Neural Sync...</div>
+<input type="text" id="userInput" placeholder="Ask: Answer question 3..." onkeypress="if(event.key==='Enter') solve()">
 
 <script>
-    const video = document.getElementById('webcam');
-    const output = document.getElementById('chat-output');
+async function bootLens() {
+    const log = document.getElementById('log');
+    const video = document.getElementById('lens');
+    document.getElementById('overlay').style.display = 'none';
+    
+    log.innerHTML += "<br>> REQUESTING HARDWARE ACCESS...";
 
-    // 1. ACTIVATE REAL CAMERA
-    async function startCamera() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-            video.srcObject = stream;
-        } catch (err) {
-            output.innerHTML += `<div class="robot-msg">ERROR: Camera access denied. Check permissions.</div>`;
-        }
-    }
-
-    // 2. CAPTURE & ANALYZE
-    function capturePhoto() {
-        output.innerHTML += `<div class="robot-msg">AETHER-01: Image captured. Analyzing pixels...</div>`;
-        // Simulate Robot thinking
-        setTimeout(() => {
-            output.innerHTML += `<div class="robot-msg">AETHER-01: Found 3 questions in image. Which one should I solve?</div>`;
-            output.scrollTop = output.scrollHeight;
-        }, 1500);
-    }
-
-    // 3. TEXT SOLVING
-    function sendText() {
-        const input = document.getElementById('userInput');
-        if (!input.value) return;
-
-        output.innerHTML += `<div class="user-msg">${input.value}</div>`;
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: "environment" } // Forces back camera
+        });
         
-        const query = input.value.toLowerCase();
+        video.srcObject = stream;
         
-        setTimeout(() => {
-            if (query.includes('3 question') || query.includes('question 3')) {
-                output.innerHTML += `
-                <div class="robot-msg">
-                    <b>AETHER-01 DATA RETRIEVAL:</b><br>
-                    [SUBJECT: SCIENCE]<br>
-                    Q3: Explain Photosynthesis.<br><br>
-                    <b>Rational Answer:</b> It is the process where plants convert light energy into chemical energy. 
-                    Formula: 6CO2 + 6H2O + Light → C6H12O6 + 6O2.<br>
-                    <i>Speed: 0.42ms | Accuracy: 100%</i>
-                </div>`;
-            } else {
-                output.innerHTML += `<div class="robot-msg">AETHER-01: Processing request... Please be specific (e.g., "Solve Math Q1").</div>`;
-            }
-            output.scrollTop = output.scrollHeight;
-        }, 800);
-
-        input.value = "";
+        // This part forces the video to start if it gets stuck
+        video.onloadedmetadata = () => {
+            video.play();
+            log.innerHTML += "<br>> LENS SYNCED. READY TO SCAN.";
+        };
+    } catch (err) {
+        log.innerHTML += `<br><span style="color:red">> ERROR: ${err.name}</span>`;
+        log.innerHTML += "<br>> FIX: Ensure 'chrome://flags' is set to Enabled for file:/// ";
     }
+}
 
-    function checkEnter(e) { if (e.key === 'Enter') sendText(); }
-
-    // Initialize Camera on load
-    startCamera();
+function solve() {
+    const input = document.getElementById('userInput');
+    const log = document.getElementById('log');
+    log.innerHTML += `<br><span style="color:#ff007a">> USER: ${input.value}</span>`;
+    
+    if(input.value.toLowerCase().includes('3')) {
+        log.innerHTML += `<br>> AETHER-01: Q3 Detected. Answer is 5. Logic: 2x = 10 -> x = 5.`;
+    } else {
+        log.innerHTML += `<br>> AETHER-01: Scanning... Try 'answer question 3'.`;
+    }
+    input.value = "";
+    log.scrollTop = log.scrollHeight;
+}
 </script>
-
 </body>
 </html>
