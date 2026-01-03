@@ -3,91 +3,120 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AETHER-01 | SCANNER</title>
+    <title>AETHER-01 | ELITE SCANNER</title>
     <style>
-        :root { --neon: #00f2ff; --bg: #050505; }
+        :root { --neon: #00f2ff; --bg: #050505; --alert: #ff0055; }
         body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* Full-Screen Lens Container */
+        #lens-wrapper { position: relative; height: 60%; width: 100%; background: #000; border-bottom: 2px solid var(--neon); overflow: hidden; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        canvas { display: none; width: 100%; height: 100%; object-fit: cover; }
+
+        /* Interactive HUD Overlay */
+        .hud { position: absolute; inset: 0; pointer-events: none; border: 20px solid transparent; border-image: radial-gradient(circle, transparent 70%, rgba(0,242,255,0.1) 100%) 1; }
+        .corner { position: absolute; width: 30px; height: 30px; border: 2px solid var(--neon); }
+        .top-l { top: 10px; left: 10px; border-right: 0; border-bottom: 0; }
+        .top-r { top: 10px; right: 10px; border-left: 0; border-bottom: 0; }
+        .scan-bar { position: absolute; width: 100%; height: 2px; background: var(--neon); top: 0; animation: scanning 4s linear infinite; box-shadow: 0 0 15px var(--neon); }
+        @keyframes scanning { 0% { top: 0; opacity: 0; } 50% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+
+        /* Floating Click Button */
+        .capture-trigger { 
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            width: 70px; height: 70px; border-radius: 50%; border: 4px solid #fff;
+            background: rgba(255, 255, 255, 0.2); cursor: pointer; pointer-events: auto;
+            display: flex; align-items: center; justify-content: center; z-index: 100;
+            box-shadow: 0 0 20px rgba(0,242,255,0.5);
+        }
+        .capture-trigger:active { transform: translateX(-50%) scale(0.9); background: var(--neon); }
+
+        /* Terminal & Input */
+        #terminal { flex: 1; padding: 10px; overflow-y: auto; background: rgba(0,0,0,0.9); font-size: 12px; }
+        .log { margin-bottom: 4px; padding-left: 10px; border-left: 2px solid #222; }
+        .ai-text { color: var(--neon); text-shadow: 0 0 5px var(--neon); }
         
-        /* Camera & Capture Container */
-        #viewport { position: relative; height: 45%; border-bottom: 2px solid var(--neon); background: #000; }
-        video, canvas { width: 100%; height: 100%; object-fit: cover; position: absolute; top:0; left:0; }
-        canvas { display: none; border: 2px solid #fff; } /* The Captured Photo */
-
-        /* Buttons Area */
-        .tools { display: flex; justify-content: center; gap: 20px; padding: 10px; background: #111; }
-        .btn { border: 2px solid var(--neon); background: none; color: var(--neon); padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 5px; }
-        .cap-btn { background: var(--neon); color: #000; box-shadow: 0 0 15px var(--neon); }
-
-        #terminal { flex: 1; padding: 15px; overflow-y: auto; font-size: 13px; background: #0a0a0a; }
-        .log { margin-bottom: 5px; border-left: 2px solid #222; padding-left: 8px; }
-        .input-box { padding: 10px; background: #000; display: flex; }
+        .input-zone { padding: 10px; background: #000; display: flex; gap: 10px; border-top: 1px solid #222; }
         input { flex: 1; background: #111; border: 1px solid var(--neon); color: #fff; padding: 12px; outline: none; }
     </style>
 </head>
 <body>
 
-<div id="viewport">
-    <video id="lens" autoplay playsinline muted></video>
-    <canvas id="photo"></canvas> </div>
+<div id="lens-wrapper">
+    <video id="v" autoplay playsinline muted></video>
+    <canvas id="c"></canvas>
+    
+    <div class="hud">
+        <div class="corner top-l"></div>
+        <div class="corner top-r"></div>
+        <div class="scan-bar"></div>
+    </div>
 
-<div class="tools">
-    <button class="btn cap-btn" onclick="takePhoto()">CLICK PHOTO</button>
-    <button class="btn" onclick="resetLens()">RESET</button>
+    <div class="capture-trigger" onclick="snapPhoto()">
+        <div style="width:50px; height:50px; border-radius:50%; background:#fff;"></div>
+    </div>
 </div>
 
 <div id="terminal">
-    <div class="log">> AETHER-01: SYSTEM READY...</div>
+    <div class="log ai-text">> AETHER-01 CORE: ONLINE</div>
+    <div class="log ai-text">> POSITION LENS OVER TEXT AND CLICK BUTTON</div>
 </div>
 
-<div class="input-box">
-    <input type="text" id="userInput" placeholder="Ask a question..." onkeypress="if(event.key==='Enter') process()">
+<div class="input-zone">
+    <input type="text" id="in" placeholder="Ask Aether..." onkeypress="if(event.key==='Enter') send()">
+    <button onclick="reset()" style="background:none; border:1px solid #444; color:#888;">RESET</button>
 </div>
 
 <script>
-    const video = document.getElementById('lens');
-    const canvas = document.getElementById('photo');
-    const term = document.getElementById('terminal');
+    const v = document.getElementById('v');
+    const c = document.getElementById('c');
+    const t = document.getElementById('terminal');
 
-    // Start Camera
+    // Auto-start back camera
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-        .then(s => video.srcObject = s);
+        .then(stream => v.srcObject = stream);
 
-    function takePhoto() {
-        // Set canvas size to match video
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+    function snapPhoto() {
+        c.width = v.videoWidth;
+        c.height = v.videoHeight;
+        c.getContext('2d').drawImage(v, 0, 0);
         
-        // Draw the current video frame onto the canvas
-        canvas.getContext('2d').drawImage(video, 0, 0);
+        c.style.display = 'block';
+        v.style.display = 'none';
         
-        // Show photo, hide video
-        canvas.style.display = 'block';
-        video.style.visibility = 'hidden';
-        
-        addLog("[ SYSTEM ] PHOTO CAPTURED. ANALYZING TEXT...", var(--neon));
+        addLog("SYSTEM: IMAGE LOCKED. ANALYZING DATA...", "var(--neon)");
+        // Interactive "Beep" simulation
+        navigator.vibrate(50); 
     }
 
-    function resetLens() {
-        canvas.style.display = 'none';
-        video.style.visibility = 'visible';
-        addLog("[ SYSTEM ] LENS RESET. SCANNING...", "#888");
+    function reset() {
+        c.style.display = 'none';
+        v.style.display = 'block';
+        addLog("SYSTEM: LENS RE-INITIALIZED.", "#888");
     }
 
-    function process() {
-        const input = document.getElementById('userInput');
-        if(!input.value) return;
-        addLog("STUDENT: " + input.value, "#ff007a");
-        setTimeout(() => addLog("AETHER: Target identified in photo. Answer is 10.", "#00ff88"), 600);
-        input.value = "";
+    function send() {
+        const i = document.getElementById('in');
+        if(!i.value) return;
+        addLog("USER: " + i.value, "#ff007a");
+        
+        // Dynamic Response Logic
+        setTimeout(() => {
+            const answers = ["Calculating probability...", "Scanning database...", "Pattern recognized.", "Accessing archives..."];
+            const randomMsg = answers[Math.floor(Math.random() * answers.length)];
+            addLog("AETHER: " + randomMsg, "var(--neon)");
+        }, 500);
+        
+        i.value = "";
     }
 
-    function addLog(txt, color) {
+    function addLog(msg, col) {
         const d = document.createElement('div');
         d.className = 'log';
-        d.style.color = color;
-        d.innerText = txt;
-        term.appendChild(d);
-        term.scrollTop = term.scrollHeight;
+        d.style.color = col;
+        d.innerHTML = `> ${msg}`;
+        t.appendChild(d);
+        t.scrollTop = t.scrollHeight;
     }
 </script>
 
