@@ -3,95 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AETHER-01 | NEURAL LENS</title>
+    <title>AETHER-01 PRO</title>
     <style>
-        :root { --glow: #00f2ff; --bg: #050505; }
-        body { background: var(--bg); color: var(--glow); font-family: 'Courier New', monospace; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        :root { --neon: #00f2ff; --math: #00ff88; --sci: #bcfe01; --bg: #050505; }
+        body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
-        /* Lens Interface */
-        #lens-container { position: relative; height: 60%; border-bottom: 2px solid var(--glow); background: #000; }
-        video { width: 100%; height: 100%; object-fit: cover; }
-        
-        /* Initialization Button */
-        #boot-screen { position: absolute; inset: 0; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; cursor: pointer; }
-        .boot-box { border: 2px solid var(--glow); padding: 25px; border-radius: 5px; box-shadow: 0 0 15px var(--glow); text-align: center; }
+        /* Scanner Viewport */
+        #viewport { position: relative; height: 50%; border-bottom: 2px solid var(--neon); background: #000; }
+        video { width: 100%; height: 100%; object-fit: cover; opacity: 0.8; }
+        .scan-line { position: absolute; width: 100%; height: 2px; background: var(--neon); top: 0; animation: scan 3s linear infinite; box-shadow: 0 0 15px var(--neon); z-index: 5; }
+        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
 
-        /* AI Terminal */
-        #terminal { flex: 1; padding: 15px; overflow-y: auto; background: #0a0a0a; font-size: 14px; }
-        .line { margin-bottom: 8px; border-left: 2px solid #222; padding-left: 10px; }
-        .ai { color: var(--glow); }
-        .user { color: #ff007a; }
+        /* Control Panel */
+        .controls { display: flex; justify-content: space-around; padding: 10px; background: #111; border-bottom: 1px solid #222; }
+        .mode-btn { border: 1px solid var(--neon); background: none; color: var(--neon); padding: 5px 10px; font-size: 10px; cursor: pointer; border-radius: 3px; }
+        .mode-btn.active { background: var(--neon); color: #000; box-shadow: 0 0 10px var(--neon); }
 
-        /* Chat Input */
-        .input-area { padding: 10px; background: #000; display: flex; }
-        input { flex: 1; background: #111; border: 1px solid var(--glow); color: #fff; padding: 12px; outline: none; }
+        /* Terminal */
+        #terminal { flex: 1; padding: 15px; overflow-y: auto; font-size: 13px; background: rgba(0,0,0,0.9); }
+        .log { margin-bottom: 5px; }
+        .sys { color: #888; }
+        .data { color: var(--math); }
+
+        /* Input */
+        .input-box { padding: 15px; background: #000; display: flex; border-top: 1px solid #222; }
+        input { flex: 1; background: #111; border: 1px solid var(--neon); color: #fff; padding: 12px; outline: none; border-radius: 4px; }
     </style>
 </head>
 <body>
 
-<div id="lens-container">
-    <div id="boot-screen" onclick="startAether()">
-        <div class="boot-box">
-            <h2 style="margin:0">AETHER-01</h2>
-            <p>[ CLICK TO SYNC SENSORS ]</p>
-        </div>
-    </div>
-    <video id="webcam" autoplay playsinline muted></video>
+<div id="viewport">
+    <div class="scan-line"></div>
+    <video id="lens" autoplay playsinline muted></video>
+</div>
+
+<div class="controls">
+    <button class="mode-btn active" onclick="setMode('MATH', '#00ff88')">MATH</button>
+    <button class="mode-btn" onclick="setMode('SCIENCE', '#bcfe01')">SCIENCE</button>
+    <button class="mode-btn" onclick="setMode('SST', '#ff8800')">SST</button>
 </div>
 
 <div id="terminal">
-    <div class="line ai">> AETHER-01 OS v1.2 LOADED.</div>
-    <div class="line ai">> WAITING FOR SENSOR SYNC...</div>
+    <div class="log sys">[ SYSTEM ] AETHER-01 NEURAL LENS ONLINE...</div>
+    <div class="log sys">[ SYSTEM ] READY FOR DATA INPUT.</div>
 </div>
 
-<div class="input-area">
-    <input type="text" id="cmd" placeholder="Ask Aether something..." onkeypress="if(event.key==='Enter') sendCommand()">
+<div class="input-box">
+    <input type="text" id="userInput" placeholder="Type question (e.g. 'Solve Q5')..." onkeypress="if(event.key==='Enter') process()">
 </div>
 
 <script>
-    const term = document.getElementById('terminal');
-    const cam = document.getElementById('webcam');
+    let currentMode = 'MATH';
+    let modeColor = '#00ff88';
 
-    async function startAether() {
-        document.getElementById('boot-screen').style.display = 'none';
-        addLog("> INITIALIZING NEURAL LENS...", "ai");
+    // Auto-start camera
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+        .then(s => document.getElementById('lens').srcObject = s);
+
+    function setMode(mode, color) {
+        currentMode = mode;
+        modeColor = color;
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+        addLog(`[ SYSTEM ] MODE SWAPPED TO: ${mode}`, '#fff');
+        document.documentElement.style.setProperty('--neon', color);
+    }
+
+    function process() {
+        const input = document.getElementById('userInput');
+        const val = input.value.trim();
+        if(!val) return;
+
+        addLog(`STUDENT: ${val}`, '#ff007a');
         
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment" } 
-            });
-            cam.srcObject = stream;
-            addLog("> LENS SYNC SUCCESSFUL. SCANNING ACTIVE.", "ai");
-        } catch (err) {
-            addLog("> ERROR: SENSORS BLOCKED. CHECK PERMISSIONS.", "user");
-            alert("Please allow camera access to use Aether-01.");
-        }
-    }
-
-    function sendCommand() {
-        const box = document.getElementById('cmd');
-        const text = box.value.trim();
-        if(!text) return;
-
-        addLog(`STUDENT: ${text}`, "user");
-        box.value = "";
-
-        // AI Response Logic
         setTimeout(() => {
-            if(text.toLowerCase().includes("3")) {
-                addLog("AETHER: Logic detected. Question 3 Solution = 12.5. Steps: x + 5 = 17.5.", "ai");
+            if(currentMode === 'MATH') {
+                addLog(`[AETHER-MATH] Processing ${val}... Solution found: 42. Check Step 2.`, modeColor);
+            } else if(currentMode === 'SCIENCE') {
+                addLog(`[AETHER-SCI] Analyzing biology prompt... Data: Photosynthesis occurs in chloroplasts.`, modeColor);
             } else {
-                addLog("AETHER: Processing data... No specific homework command recognized.", "ai");
+                addLog(`[AETHER-SST] Accessing history archives... Key Date: 1947.`, modeColor);
             }
-        }, 600);
+        }, 800);
+
+        input.value = "";
     }
 
-    function addLog(msg, type) {
-        const div = document.createElement('div');
-        div.className = `line ${type}`;
-        div.innerText = msg;
-        term.appendChild(div);
-        term.scrollTop = term.scrollHeight;
+    function addLog(text, color) {
+        const t = document.getElementById('terminal');
+        const d = document.createElement('div');
+        d.className = 'log';
+        d.style.color = color;
+        d.innerText = text;
+        t.appendChild(d);
+        t.scrollTop = t.scrollHeight;
     }
 </script>
 
